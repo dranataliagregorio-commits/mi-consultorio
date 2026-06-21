@@ -575,31 +575,226 @@ function Fichas() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
+// MÓDULO PRESUPUESTOS
+// ══════════════════════════════════════════════════════════════════════════════
+const TRATAMIENTOS_PRESET = [
+  "Consulta / Diagnóstico","Radiografía","Limpieza profesional",
+  "Obturación simple","Obturación compuesta","Endodoncia unirradicular",
+  "Endodoncia multirradicular","Extracción simple","Extracción quirúrgica",
+  "Cirugía de retenido","Implante (colocación)","Corona sobre implante",
+  "Corona metal porcelana","Corona total cerámica","Prótesis removible",
+  "Ortodoncia (aparato completo)","Control de ortodoncia","Blanqueamiento",
+  "Tratamiento láser","Sellado de fosas y fisuras","Flúor",
+];
+const FORMAS_PAGO = ["Efectivo","Transferencia","Tarjeta de débito","Tarjeta de crédito"];
+
+function Presupuestos() {
+  const { data: presupuestos, loading, save, remove } = useFirestore("presupuestos", []);
+  const { data: pacientes } = useFirestore("fichas", []);
+  const [vista, setVista] = useState("lista");
+  const [presActual, setPresActual] = useState(null);
+  const [busqueda, setBusqueda] = useState("");
+  const FORM_INIT = { pacienteId:"", pacienteNombre:"", fecha:today(), items:[{id:uid(),tratamiento:"",precio:""}], descuentoPct:"", formaPago:"Efectivo", cuotas:"1", notas:"", firmado:false, firmaNombre:"" };
+  const [form, setForm] = useState(FORM_INIT);
+
+  if (loading) return <Spinner />;
+
+  const totalBruto = (items) => items.reduce((s,i) => s + (parseFloat(i.precio)||0), 0);
+  const totalFinal = (p) => { const b = totalBruto(p.items); return b - (b*(parseFloat(p.descuentoPct)||0)/100); };
+
+  const addItem = () => setForm(f => ({...f, items:[...f.items,{id:uid(),tratamiento:"",precio:""}]}));
+  const removeItem = (id) => setForm(f => ({...f, items:f.items.filter(i=>i.id!==id)}));
+  const updateItem = (id,campo,val) => setForm(f => ({...f, items:f.items.map(i=>i.id!==id?i:{...i,[campo]:val})}));
+
+  const guardar = () => {
+    if (!form.pacienteNombre) return;
+    save({...form, id: presActual ? presActual.id : uid(), total: totalFinal(form)});
+    setVista("lista"); setPresActual(null); setForm(FORM_INIT);
+  };
+
+  const imprimir = (p) => {
+    const win = window.open("","_blank");
+    const total = totalFinal(p);
+    const cuotaMonto = parseInt(p.cuotas) > 1 ? total/parseInt(p.cuotas) : null;
+    win.document.write(`<html><head><title>Presupuesto</title>
+    <style>
+      body{font-family:Arial,sans-serif;max-width:680px;margin:40px auto;color:#1A2E2C}
+      h1{color:#2A9D8F;font-size:20px;margin-bottom:2px}
+      .sub{color:#6B8C8A;font-size:12px;margin-bottom:20px}
+      table{width:100%;border-collapse:collapse;margin:16px 0}
+      th{background:#E8F5F3;padding:9px;text-align:left;font-size:12px}
+      td{padding:9px;border-bottom:1px solid #DDE8E8;font-size:13px}
+      .total{font-size:17px;font-weight:bold;color:#2A9D8F;text-align:right;margin:8px 0}
+      .firma-line{border-top:1px solid #333;width:220px;margin-top:50px;font-size:11px;color:#6B8C8A;padding-top:4px}
+      @media print{button{display:none}}
+    </style></head><body>
+    <h1>🦷 Consultorio Od. Natalia Gregorio</h1>
+    <div class="sub">Presupuesto · ${p.fecha}</div>
+    <div style="margin-bottom:12px"><strong>Paciente:</strong> ${p.pacienteNombre}</div>
+    <table>
+      <tr><th>Tratamiento</th><th style="text-align:right">Precio</th></tr>
+      ${p.items.map(i=>`<tr><td>${i.tratamientoCustom||i.tratamiento}</td><td style="text-align:right">${new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(parseFloat(i.precio)||0)}</td></tr>`).join("")}
+    </table>
+    ${p.descuentoPct?`<div style="text-align:right;color:#E76F51;font-size:13px">Descuento pago contado ${p.descuentoPct}%: -${new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(totalBruto(p.items)*parseFloat(p.descuentoPct)/100)}</div>`:""}
+    <div class="total">TOTAL: ${new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(total)}</div>
+    ${cuotaMonto?`<div style="text-align:right;font-size:12px;color:#6B8C8A">${p.cuotas} cuotas de ${new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(cuotaMonto)}</div>`:""}
+    <div style="margin-top:10px;font-size:13px"><strong>Forma de pago:</strong> ${p.formaPago}</div>
+    ${p.notas?`<div style="margin-top:10px;font-size:12px;color:#6B8C8A"><strong>Notas:</strong> ${p.notas}</div>`:""}
+    <div style="margin-top:50px;border-top:1px solid #ccc;padding-top:16px">
+      <p style="font-size:12px">El/la paciente declara haber recibido y comprendido el presente presupuesto.</p>
+      <div style="display:flex;gap:40px;margin-top:16px">
+        <div class="firma-line">Firma del paciente</div>
+        <div class="firma-line">Aclaración</div>
+        <div class="firma-line">DNI</div>
+      </div>
+    </div>
+    <button onclick="window.print()" style="margin-top:20px;padding:10px 20px;background:#2A9D8F;color:white;border:none;border-radius:8px;cursor:pointer">🖨️ Imprimir / Guardar PDF</button>
+    </body></html>`);
+    win.document.close();
+  };
+
+  if (vista === "nuevo") return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <Btn variant="secondary" small onClick={()=>setVista("lista")}>← Volver</Btn>
+        <h2 style={{margin:0,fontSize:17}}>{presActual?"Editar presupuesto":"Nuevo presupuesto"}</h2>
+      </div>
+
+      <div style={{background:COLORS.surface,border:`1px solid ${COLORS.border}`,borderRadius:12,padding:20,marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:12,color:COLORS.accentDark}}>Datos del paciente</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <Field label="Buscar en fichas">
+            <select style={inputStyle} value={form.pacienteId} onChange={e=>{
+              const p=pacientes.find(p=>p.id===e.target.value);
+              setForm(f=>({...f,pacienteId:e.target.value,pacienteNombre:p?`${p.apellido}, ${p.nombre}`:""}));
+            }}>
+              <option value="">— Seleccionar —</option>
+              {pacientes.map(p=><option key={p.id} value={p.id}>{p.apellido}, {p.nombre}</option>)}
+            </select>
+          </Field>
+          <Field label="Nombre del paciente"><input style={inputStyle} value={form.pacienteNombre} onChange={e=>setForm(f=>({...f,pacienteNombre:e.target.value}))} placeholder="O escribí directamente" /></Field>
+          <Field label="Fecha"><input style={inputStyle} type="date" value={form.fecha} onChange={e=>setForm(f=>({...f,fecha:e.target.value}))} /></Field>
+        </div>
+      </div>
+
+      <div style={{background:COLORS.surface,border:`1px solid ${COLORS.border}`,borderRadius:12,padding:20,marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:12,color:COLORS.accentDark}}>Tratamientos</div>
+        {form.items.map((item,idx)=>(
+          <div key={item.id} style={{display:"grid",gridTemplateColumns:"1fr 140px 30px",gap:8,marginBottom:8,alignItems:"end"}}>
+            <Field label={idx===0?"Tratamiento":""}>
+              <select style={inputStyle} value={item.tratamiento} onChange={e=>updateItem(item.id,"tratamiento",e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {TRATAMIENTOS_PRESET.map(t=><option key={t}>{t}</option>)}
+                <option value="Otro">Otro…</option>
+              </select>
+              {item.tratamiento==="Otro"&&<input style={{...inputStyle,marginTop:6}} placeholder="Describí el tratamiento" value={item.tratamientoCustom||""} onChange={e=>updateItem(item.id,"tratamientoCustom",e.target.value)} />}
+            </Field>
+            <Field label={idx===0?"Precio $":""}>
+              <input style={inputStyle} type="number" placeholder="0" value={item.precio} onChange={e=>updateItem(item.id,"precio",e.target.value)} />
+            </Field>
+            <div style={{paddingBottom:14}}>
+              {form.items.length>1&&<button onClick={()=>removeItem(item.id)} style={{background:"none",border:"none",color:COLORS.danger,cursor:"pointer",fontSize:20,lineHeight:1}}>×</button>}
+            </div>
+          </div>
+        ))}
+        <Btn small variant="ghost" onClick={addItem}>+ Agregar tratamiento</Btn>
+
+        <div style={{borderTop:`1px solid ${COLORS.border}`,marginTop:16,paddingTop:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
+            <Field label="Descuento contado (%)"><input style={inputStyle} type="number" value={form.descuentoPct} onChange={e=>setForm(f=>({...f,descuentoPct:e.target.value}))} placeholder="Ej: 10" /></Field>
+            <Field label="Forma de pago">
+              <select style={inputStyle} value={form.formaPago} onChange={e=>setForm(f=>({...f,formaPago:e.target.value}))}>
+                {FORMAS_PAGO.map(fp=><option key={fp}>{fp}</option>)}
+              </select>
+            </Field>
+            <Field label="Cuotas"><input style={inputStyle} type="number" min="1" value={form.cuotas} onChange={e=>setForm(f=>({...f,cuotas:e.target.value}))} /></Field>
+          </div>
+          <div style={{background:COLORS.accentLight,borderRadius:10,padding:"12px 16px",marginTop:8}}>
+            <div style={{fontSize:13,color:COLORS.textMuted}}>Subtotal: {formatARS(totalBruto(form.items))}</div>
+            {form.descuentoPct&&<div style={{fontSize:13,color:COLORS.danger}}>Descuento {form.descuentoPct}%: -{formatARS(totalBruto(form.items)*parseFloat(form.descuentoPct)/100)}</div>}
+            <div style={{fontSize:20,fontWeight:800,color:COLORS.accentDark,marginTop:4}}>TOTAL: {formatARS(totalFinal(form))}</div>
+            {parseInt(form.cuotas)>1&&<div style={{fontSize:13,color:COLORS.textMuted}}>{form.cuotas} cuotas de {formatARS(totalFinal(form)/parseInt(form.cuotas))}</div>}
+          </div>
+        </div>
+      </div>
+
+      <div style={{background:COLORS.surface,border:`1px solid ${COLORS.border}`,borderRadius:12,padding:20,marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:12,color:COLORS.accentDark}}>Notas y firma</div>
+        <Field label="Notas"><textarea style={{...inputStyle,minHeight:60,resize:"vertical"}} value={form.notas} onChange={e=>setForm(f=>({...f,notas:e.target.value}))} placeholder="Ej: Presupuesto válido por 30 días…" /></Field>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginTop:8}}>
+          <input type="checkbox" id="firmado" checked={form.firmado} onChange={e=>setForm(f=>({...f,firmado:e.target.checked}))} style={{width:16,height:16}} />
+          <label htmlFor="firmado" style={{fontSize:14,fontWeight:600}}>Paciente firmó el presupuesto</label>
+        </div>
+        {form.firmado&&<div style={{marginTop:10}}><Field label="Nombre del firmante"><input style={inputStyle} value={form.firmaNombre} onChange={e=>setForm(f=>({...f,firmaNombre:e.target.value}))} /></Field></div>}
+      </div>
+
+      <div style={{display:"flex",gap:10}}>
+        <Btn onClick={guardar} disabled={!form.pacienteNombre}>Guardar presupuesto</Btn>
+        <Btn variant="secondary" onClick={()=>setVista("lista")}>Cancelar</Btn>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+        <input placeholder="Buscar por paciente…" value={busqueda} onChange={e=>setBusqueda(e.target.value)} style={{...inputStyle,flex:1,minWidth:180}} />
+        <Btn onClick={()=>{setPresActual(null);setForm(FORM_INIT);setVista("nuevo")}}>+ Nuevo presupuesto</Btn>
+      </div>
+      {presupuestos.length===0&&<div style={{textAlign:"center",padding:60,color:COLORS.textMuted}}><div style={{fontSize:40,marginBottom:12}}>📄</div><div style={{fontWeight:600}}>No hay presupuestos todavía</div></div>}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {filtrados.map(p=>(
+          <div key={p.id} style={{background:COLORS.surface,border:`1px solid ${COLORS.border}`,borderRadius:12,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:15}}>{p.pacienteNombre}</div>
+              <div style={{fontSize:12,color:COLORS.textMuted,marginTop:2}}>{p.fecha} · {p.items.length} tratamiento{p.items.length>1?"s":""} · {p.formaPago}</div>
+              <div style={{fontSize:16,fontWeight:800,color:COLORS.accent,marginTop:4}}>{formatARS(p.total)}</div>
+            </div>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              {p.firmado&&<Badge color={COLORS.success}>✓ Firmado</Badge>}
+              <Btn small variant="ghost" onClick={()=>imprimir(p)}>🖨️ Imprimir</Btn>
+              <Btn small variant="secondary" onClick={()=>{setForm(p);setPresActual(p);setVista("nuevo")}}>Editar</Btn>
+              <Btn small variant="danger" onClick={()=>{if(confirm("¿Eliminar?"))remove(p.id)}}>×</Btn>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // APP PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [tab, setTab] = useState("fichas");
-  const tabs = [{ id: "fichas", label: "📋 Fichas" }, { id: "deudores", label: "💰 Cobranzas" }, { id: "stock", label: "📦 Stock" }];
+  const tabs = [
+    {id:"fichas",label:"📋 Fichas"},
+    {id:"presupuestos",label:"📄 Presupuestos"},
+    {id:"deudores",label:"💰 Cobranzas"},
+    {id:"stock",label:"📦 Stock"},
+  ];
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, fontFamily: "'Inter', system-ui, sans-serif", color: COLORS.text }}>
-      <div style={{ background: COLORS.surface, borderBottom: `1px solid ${COLORS.border}`, padding: "0 24px" }}>
-        <div style={{ maxWidth: 860, margin: "0 auto" }}>
-          <div style={{ padding: "18px 0 12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: COLORS.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🦷</div>
+    <div style={{minHeight:"100vh",background:COLORS.bg,fontFamily:"'Inter',system-ui,sans-serif",color:COLORS.text}}>
+      <div style={{background:COLORS.surface,borderBottom:`1px solid ${COLORS.border}`,padding:"0 24px"}}>
+        <div style={{maxWidth:900,margin:"0 auto"}}>
+          <div style={{padding:"18px 0 12px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{width:36,height:36,borderRadius:10,background:COLORS.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🦷</div>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 17, color: COLORS.text }}>Consultorio Od. Natalia Gregorio</div>
-                <div style={{ fontSize: 11, color: COLORS.textMuted }}>Sistema de gestión odontológica</div>
+                <div style={{fontWeight:800,fontSize:17,color:COLORS.text}}>Consultorio Od. Natalia Gregorio</div>
+                <div style={{fontSize:11,color:COLORS.textMuted}}>Sistema de gestión odontológica</div>
               </div>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 4 }}>
-            {tabs.map(t => <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "10px 20px", border: "none", background: "none", cursor: "pointer", fontSize: 14, fontWeight: 700, color: tab === t.id ? COLORS.accent : COLORS.textMuted, borderBottom: tab === t.id ? `2.5px solid ${COLORS.accent}` : "2.5px solid transparent" }}>{t.label}</button>)}
+          <div style={{display:"flex",gap:4}}>
+            {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"10px 16px",border:"none",background:"none",cursor:"pointer",fontSize:13,fontWeight:700,color:tab===t.id?COLORS.accent:COLORS.textMuted,borderBottom:tab===t.id?`2.5px solid ${COLORS.accent}`:"2.5px solid transparent"}}>{t.label}</button>)}
           </div>
         </div>
       </div>
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
-        {tab === "fichas" ? <Fichas /> : tab === "deudores" ? <Deudores /> : <Stock />}
+      <div style={{maxWidth:900,margin:"0 auto",padding:"24px 16px"}}>
+        {tab==="fichas"?<Fichas/>:tab==="presupuestos"?<Presupuestos/>:tab==="deudores"?<Deudores/>:<Stock/>}
       </div>
     </div>
   );
