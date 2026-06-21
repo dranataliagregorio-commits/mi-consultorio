@@ -28,6 +28,20 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
+// Hook para persistir en localStorage
+function useLocalStorage(key, initialValue) {
+  const [state, setState] = useState(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored ? JSON.parse(stored) : initialValue;
+    } catch { return initialValue; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
+  }, [key, state]);
+  return [state, setState];
+}
+
 // ── INITIAL DATA ─────────────────────────────────────────────────────────────
 const INITIAL_DEBTORS = [
   { id: uid(), nombre: "García, Laura", tratamiento: "Ortodoncia", total: 180000, pagos: [{ fecha: "2026-05-10", monto: 60000 }] },
@@ -206,7 +220,7 @@ function Btn({ children, onClick, variant = "primary", small, disabled }) {
 // MÓDULO DEUDORES
 // ══════════════════════════════════════════════════════════════════════════════
 function Deudores() {
-  const [debtors, setDebtors] = useState(INITIAL_DEBTORS);
+  const [debtors, setDebtors] = useLocalStorage("ng_debtors", INITIAL_DEBTORS);
   const [modal, setModal] = useState(null); // "nuevo" | {type:"pago",id} | {type:"ver",id}
   const [form, setForm] = useState({ nombre: "", tratamiento: "", total: "" });
   const [pagoForm, setPagoForm] = useState({ monto: "", fecha: today() });
@@ -378,7 +392,7 @@ function Deudores() {
 // MÓDULO STOCK
 // ══════════════════════════════════════════════════════════════════════════════
 function Stock() {
-  const [items, setItems] = useState(INITIAL_STOCK);
+  const [items, setItems] = useLocalStorage("ng_stock", INITIAL_STOCK);
   const [modal, setModal] = useState(null); // "nuevo" | {type:"editar",id}
   const [form, setForm] = useState({ nombre: "", categoria: "Clínico", cantidad: "", minimo: "", unidad: "" });
   const [filtro, setFiltro] = useState("Todos");
@@ -635,7 +649,7 @@ function calcularEdad(fechaNac) {
 }
 
 function Fichas() {
-  const [pacientes, setPacientes] = useState([]);
+  const [pacientes, setPacientes] = useLocalStorage("ng_pacientes", []);
   const [vista, setVista] = useState("lista"); // "lista" | "nueva" | "ver"
   const [fichaActual, setFichaActual] = useState(null);
   const [form, setForm] = useState(FICHA_VACIA);
