@@ -532,12 +532,296 @@ function Stock() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ODONTOGRAMA
+// ══════════════════════════════════════════════════════════════════════════════
+const DIENTES_SUP = [18,17,16,15,14,13,12,11,21,22,23,24,25,26,27,28];
+const DIENTES_INF = [48,47,46,45,44,43,42,41,31,32,33,34,35,36,37,38];
+const ESTADOS_DIENTE = ["Sano","Caries","Obturado","Corona","Ausente","Implante","Endodoncia","Fractura"];
+const COLORES_ESTADO = {
+  "Sano": COLORS.success, "Caries": COLORS.danger, "Obturado": "#4A90D9",
+  "Corona": "#9B59B6", "Ausente": COLORS.textMuted, "Implante": COLORS.accent,
+  "Endodoncia": COLORS.warning, "Fractura": "#E67E22"
+};
+
+function Odontograma({ estados, onChange }) {
+  const [selected, setSelected] = useState(null);
+
+  const handleDiente = (num) => setSelected(num === selected ? null : num);
+  const handleEstado = (estado) => {
+    if (selected) { onChange({ ...estados, [selected]: estado }); setSelected(null); }
+  };
+
+  const Diente = ({ num }) => {
+    const estado = estados[num] || "Sano";
+    const color = COLORES_ESTADO[estado];
+    const isSelected = selected === num;
+    return (
+      <div onClick={() => handleDiente(num)} style={{
+        width: 36, height: 44, borderRadius: 6, border: `2px solid ${isSelected ? COLORS.text : color}`,
+        background: estado === "Ausente" ? COLORS.border : color + "33",
+        cursor: "pointer", display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 1,
+        boxShadow: isSelected ? `0 0 0 2px ${COLORS.text}` : "none",
+        transition: "all .15s",
+      }}>
+        <span style={{ fontSize: 9, fontWeight: 700, color: COLORS.textMuted }}>{num}</span>
+        <div style={{ width: 16, height: 16, borderRadius: 3, background: color, opacity: estado === "Ausente" ? 0.3 : 1 }} />
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {/* Leyenda */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+        {ESTADOS_DIENTE.map(e => (
+          <div key={e} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, background: COLORES_ESTADO[e] }} />
+            <span style={{ color: COLORS.textMuted }}>{e}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Superior */}
+      <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4, fontWeight: 600 }}>SUPERIOR</div>
+      <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginBottom: 8 }}>
+        {DIENTES_SUP.map(n => <Diente key={n} num={n} />)}
+      </div>
+      {/* Inferior */}
+      <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4, fontWeight: 600 }}>INFERIOR</div>
+      <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginBottom: 12 }}>
+        {DIENTES_INF.map(n => <Diente key={n} num={n} />)}
+      </div>
+
+      {/* Selector de estado */}
+      {selected && (
+        <div style={{ background: COLORS.accentLight, borderRadius: 10, padding: 12, marginTop: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.accentDark, marginBottom: 8 }}>
+            Diente {selected} — seleccioná estado:
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {ESTADOS_DIENTE.map(e => (
+              <button key={e} onClick={() => handleEstado(e)} style={{
+                padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+                border: `1.5px solid ${COLORES_ESTADO[e]}`, background: COLORES_ESTADO[e] + "22",
+                color: COLORES_ESTADO[e], cursor: "pointer",
+              }}>{e}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MÓDULO FICHAS
+// ══════════════════════════════════════════════════════════════════════════════
+const FICHA_VACIA = {
+  apellido: "", nombre: "", dni: "", fechaNac: "", edad: "",
+  domicilio: "", localidad: "", telefono: "", profesion: "", obraSocial: "",
+  motivoConsulta: "", tratamiento: "", alergias: "", medicamentos: "",
+  antecedentes: "", observaciones: "", odontograma: {},
+};
+
+function calcularEdad(fechaNac) {
+  if (!fechaNac) return "";
+  const hoy = new Date();
+  const nac = new Date(fechaNac);
+  let edad = hoy.getFullYear() - nac.getFullYear();
+  const m = hoy.getMonth() - nac.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
+  return edad;
+}
+
+function Fichas() {
+  const [pacientes, setPacientes] = useState([]);
+  const [vista, setVista] = useState("lista"); // "lista" | "nueva" | "ver"
+  const [fichaActual, setFichaActual] = useState(null);
+  const [form, setForm] = useState(FICHA_VACIA);
+  const [busqueda, setBusqueda] = useState("");
+  const [seccion, setSeccion] = useState("datos"); // "datos" | "clinica" | "odontograma"
+
+  const filtrados = pacientes.filter(p =>
+    `${p.apellido} ${p.nombre}`.toLowerCase().includes(busqueda.toLowerCase()) ||
+    p.dni.includes(busqueda)
+  );
+
+  const setF = (campo, val) => setForm(f => ({
+    ...f, [campo]: val,
+    ...(campo === "fechaNac" ? { edad: calcularEdad(val) } : {})
+  }));
+
+  const guardar = () => {
+    if (!form.apellido || !form.nombre) return;
+    if (fichaActual) {
+      setPacientes(prev => prev.map(p => p.id === fichaActual.id ? { ...form, id: fichaActual.id } : p));
+    } else {
+      setPacientes(prev => [...prev, { ...form, id: uid() }]);
+    }
+    setVista("lista");
+    setFichaActual(null);
+    setForm(FICHA_VACIA);
+    setSeccion("datos");
+  };
+
+  const eliminar = (id) => {
+    if (confirm("¿Eliminar esta ficha?")) setPacientes(prev => prev.filter(p => p.id !== id));
+  };
+
+  const abrirNueva = () => { setForm(FICHA_VACIA); setFichaActual(null); setSeccion("datos"); setVista("nueva"); };
+  const abrirEditar = (p) => { setForm(p); setFichaActual(p); setSeccion("datos"); setVista("nueva"); };
+  const abrirVer = (p) => { setFichaActual(p); setVista("ver"); };
+
+  const secciones = [
+    { id: "datos", label: "👤 Datos personales" },
+    { id: "clinica", label: "🩺 Clínica" },
+    { id: "odontograma", label: "🦷 Odontograma" },
+  ];
+
+  if (vista === "nueva") return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <Btn variant="secondary" small onClick={() => setVista("lista")}>← Volver</Btn>
+        <h2 style={{ margin: 0, fontSize: 17 }}>{fichaActual ? "Editar ficha" : "Nueva ficha"}</h2>
+      </div>
+
+      {/* Tabs secciones */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1px solid ${COLORS.border}` }}>
+        {secciones.map(s => (
+          <button key={s.id} onClick={() => setSeccion(s.id)} style={{
+            padding: "8px 16px", border: "none", background: "none", cursor: "pointer",
+            fontSize: 13, fontWeight: 700,
+            color: seccion === s.id ? COLORS.accent : COLORS.textMuted,
+            borderBottom: seccion === s.id ? `2.5px solid ${COLORS.accent}` : "2.5px solid transparent",
+          }}>{s.label}</button>
+        ))}
+      </div>
+
+      {seccion === "datos" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label="Apellido"><input style={inputStyle} value={form.apellido} onChange={e => setF("apellido", e.target.value)} /></Field>
+          <Field label="Nombre"><input style={inputStyle} value={form.nombre} onChange={e => setF("nombre", e.target.value)} /></Field>
+          <Field label="DNI"><input style={inputStyle} value={form.dni} onChange={e => setF("dni", e.target.value)} /></Field>
+          <Field label="Fecha de nacimiento"><input style={inputStyle} type="date" value={form.fechaNac} onChange={e => setF("fechaNac", e.target.value)} /></Field>
+          <Field label="Edad"><input style={inputStyle} value={form.edad} readOnly placeholder="Se calcula sola" /></Field>
+          <Field label="Teléfono"><input style={inputStyle} value={form.telefono} onChange={e => setF("telefono", e.target.value)} /></Field>
+          <Field label="Domicilio"><input style={inputStyle} value={form.domicilio} onChange={e => setF("domicilio", e.target.value)} /></Field>
+          <Field label="Localidad"><input style={inputStyle} value={form.localidad} onChange={e => setF("localidad", e.target.value)} /></Field>
+          <Field label="Profesión"><input style={inputStyle} value={form.profesion} onChange={e => setF("profesion", e.target.value)} /></Field>
+          <Field label="Obra social"><input style={inputStyle} value={form.obraSocial} onChange={e => setF("obraSocial", e.target.value)} /></Field>
+        </div>
+      )}
+
+      {seccion === "clinica" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Field label="Motivo de consulta"><textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={form.motivoConsulta} onChange={e => setF("motivoConsulta", e.target.value)} /></Field>
+          <Field label="Tratamiento"><textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={form.tratamiento} onChange={e => setF("tratamiento", e.target.value)} /></Field>
+          <Field label="Alergias"><input style={inputStyle} value={form.alergias} onChange={e => setF("alergias", e.target.value)} placeholder="Ej: Penicilina, látex…" /></Field>
+          <Field label="Medicamentos actuales"><input style={inputStyle} value={form.medicamentos} onChange={e => setF("medicamentos", e.target.value)} /></Field>
+          <Field label="Antecedentes médicos"><textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={form.antecedentes} onChange={e => setF("antecedentes", e.target.value)} /></Field>
+          <Field label="Observaciones"><textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={form.observaciones} onChange={e => setF("observaciones", e.target.value)} /></Field>
+        </div>
+      )}
+
+      {seccion === "odontograma" && (
+        <Odontograma estados={form.odontograma} onChange={od => setForm(f => ({ ...f, odontograma: od }))} />
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+        <Btn onClick={guardar} disabled={!form.apellido || !form.nombre}>Guardar ficha</Btn>
+        <Btn variant="secondary" onClick={() => setVista("lista")}>Cancelar</Btn>
+      </div>
+    </div>
+  );
+
+  if (vista === "ver" && fichaActual) return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <Btn variant="secondary" small onClick={() => setVista("lista")}>← Volver</Btn>
+        <Btn small onClick={() => abrirEditar(fichaActual)}>Editar</Btn>
+      </div>
+      <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 24 }}>
+        <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>{fichaActual.apellido}, {fichaActual.nombre}</div>
+        <div style={{ color: COLORS.textMuted, fontSize: 13, marginBottom: 20 }}>DNI {fichaActual.dni} · {fichaActual.edad} años · {fichaActual.obraSocial}</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+          {[
+            ["Teléfono", fichaActual.telefono], ["Profesión", fichaActual.profesion],
+            ["Domicilio", fichaActual.domicilio], ["Localidad", fichaActual.localidad],
+            ["Fecha nac.", fichaActual.fechaNac], ["Obra social", fichaActual.obraSocial],
+          ].map(([k, v]) => v ? (
+            <div key={k}>
+              <div style={{ fontSize: 11, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>{k}</div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{v}</div>
+            </div>
+          ) : null)}
+        </div>
+
+        {fichaActual.alergias && <div style={{ background: COLORS.dangerLight, borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 13 }}><span style={{ fontWeight: 700, color: COLORS.danger }}>⚠ Alergias: </span>{fichaActual.alergias}</div>}
+
+        {[["Motivo de consulta", fichaActual.motivoConsulta], ["Tratamiento", fichaActual.tratamiento], ["Medicamentos", fichaActual.medicamentos], ["Antecedentes", fichaActual.antecedentes], ["Observaciones", fichaActual.observaciones]].map(([k, v]) => v ? (
+          <div key={k} style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{k}</div>
+            <div style={{ fontSize: 14, lineHeight: 1.6 }}>{v}</div>
+          </div>
+        ) : null)}
+
+        {Object.keys(fichaActual.odontograma).length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 11, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Odontograma</div>
+            <Odontograma estados={fichaActual.odontograma} onChange={() => {}} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <input placeholder="Buscar por nombre o DNI…" value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 180 }} />
+        <Btn onClick={abrirNueva}>+ Nueva ficha</Btn>
+      </div>
+
+      {pacientes.length === 0 && (
+        <div style={{ textAlign: "center", padding: 60, color: COLORS.textMuted }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+          <div style={{ fontWeight: 600 }}>No hay fichas todavía</div>
+          <div style={{ fontSize: 13, marginTop: 4 }}>Hacé click en "+ Nueva ficha" para empezar</div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {filtrados.map(p => (
+          <div key={p.id} style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{p.apellido}, {p.nombre}</div>
+              <div style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 2 }}>
+                {p.edad ? `${p.edad} años` : ""}{p.obraSocial ? ` · ${p.obraSocial}` : ""}{p.telefono ? ` · ${p.telefono}` : ""}
+              </div>
+              {p.alergias && <span style={{ fontSize: 11, color: COLORS.danger, fontWeight: 700 }}>⚠ {p.alergias}</span>}
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <Btn small variant="ghost" onClick={() => abrirVer(p)}>Ver ficha</Btn>
+              <Btn small variant="secondary" onClick={() => abrirEditar(p)}>Editar</Btn>
+              <Btn small variant="danger" onClick={() => eliminar(p.id)}>×</Btn>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // APP PRINCIPAL
 // ══════════════════════════════════════════════════════════════════════════════
 export default function App() {
-  const [tab, setTab] = useState("deudores");
+  const [tab, setTab] = useState("fichas");
 
   const tabs = [
+    { id: "fichas", label: "📋 Fichas" },
     { id: "deudores", label: "💰 Cobranzas" },
     { id: "stock", label: "📦 Stock" },
   ];
@@ -546,7 +830,7 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: COLORS.bg, fontFamily: "'Inter', system-ui, sans-serif", color: COLORS.text }}>
       {/* Header */}
       <div style={{ background: COLORS.surface, borderBottom: `1px solid ${COLORS.border}`, padding: "0 24px" }}>
-        <div style={{ maxWidth: 800, margin: "0 auto" }}>
+        <div style={{ maxWidth: 860, margin: "0 auto" }}>
           <div style={{ padding: "18px 0 12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: COLORS.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🦷</div>
@@ -571,8 +855,8 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px 16px" }}>
-        {tab === "deudores" ? <Deudores /> : <Stock />}
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: "24px 16px" }}>
+        {tab === "fichas" ? <Fichas /> : tab === "deudores" ? <Deudores /> : <Stock />}
       </div>
     </div>
   );
