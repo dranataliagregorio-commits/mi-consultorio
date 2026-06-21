@@ -551,7 +551,7 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: COLORS.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🦷</div>
               <div>
-                <div style={{ fontWeight: 800, fontSize: 17, color: COLORS.text }}>Mi Consultorio</div>
+                <div style={{ fontWeight: 800, fontSize: 17, color: COLORS.text }}>Consultorio Od. Natalia Gregorio</div>
                 <div style={{ fontSize: 11, color: COLORS.textMuted }}>Sistema de gestión odontológica</div>
               </div>
             </div>
