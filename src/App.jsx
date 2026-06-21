@@ -578,14 +578,69 @@ function Fichas() {
 // ══════════════════════════════════════════════════════════════════════════════
 // MÓDULO PRESUPUESTOS
 // ══════════════════════════════════════════════════════════════════════════════
-const TRATAMIENTOS_PRESET = [
-  "Consulta / Diagnóstico","Radiografía","Limpieza profesional",
-  "Obturación simple","Obturación compuesta","Endodoncia unirradicular",
-  "Endodoncia multirradicular","Extracción simple","Extracción quirúrgica",
-  "Cirugía de retenido","Implante (colocación)","Corona sobre implante",
-  "Corona metal porcelana","Corona total cerámica","Prótesis removible",
-  "Ortodoncia (aparato completo)","Control de ortodoncia","Blanqueamiento",
-  "Tratamiento láser","Sellado de fosas y fisuras","Flúor",
+const LISTA_PRECIOS = [
+  {tratamiento:"Primera consulta",precio:30000},
+  {tratamiento:"Consulta ulterior",precio:20000},
+  {tratamiento:"Urgencia / Medicación",precio:55000},
+  {tratamiento:"Urgencia pulpitis aguda",precio:80000},
+  {tratamiento:"Urgencia absceso",precio:64000},
+  {tratamiento:"Restauración estética simple",precio:75000},
+  {tratamiento:"Restauración estética compuesta",precio:95000},
+  {tratamiento:"Restauración estética compleja",precio:130000},
+  {tratamiento:"Reconstrucción de ángulo",precio:140000},
+  {tratamiento:"Protección pulpar directa",precio:65000},
+  {tratamiento:"Endodoncia 1 conducto",precio:160000},
+  {tratamiento:"Endodoncia 2 conductos",precio:210000},
+  {tratamiento:"Endodoncia 3 conductos",precio:300000},
+  {tratamiento:"Endodoncia 4 conductos",precio:390000},
+  {tratamiento:"Endodoncia parcial",precio:90000},
+  {tratamiento:"Desobturación / retratamiento",precio:110000},
+  {tratamiento:"Extracción simple",precio:65000},
+  {tratamiento:"Extracción quirúrgica",precio:100000},
+  {tratamiento:"Cirugía retenido mucosa",precio:240000},
+  {tratamiento:"Cirugía retenido ósea",precio:330000},
+  {tratamiento:"Frenectomía",precio:160000},
+  {tratamiento:"Apicectomía",precio:310000},
+  {tratamiento:"Germectomía",precio:320000},
+  {tratamiento:"Colocación de implante",precio:700000},
+  {tratamiento:"Regeneración ósea guiada (ROG)",precio:220000},
+  {tratamiento:"Corona porcelana sobre metal",precio:580000},
+  {tratamiento:"Corona porcelana sin metal",precio:800000},
+  {tratamiento:"Corona acrílico",precio:250000},
+  {tratamiento:"Perno preformado simple",precio:120000},
+  {tratamiento:"Corona provisoria",precio:110000},
+  {tratamiento:"PPR acrílico hasta 5 dientes",precio:400000},
+  {tratamiento:"PPR acrílico más de 5 dientes",precio:500000},
+  {tratamiento:"PPR Cromo Cobalto",precio:650000},
+  {tratamiento:"Prótesis completa acrílico",precio:620000},
+  {tratamiento:"Prótesis completa nylon",precio:660000},
+  {tratamiento:"Primera consulta ortodoncia",precio:55000},
+  {tratamiento:"Diagnóstico ortodoncia (modelos, fotos)",precio:90000},
+  {tratamiento:"Ortodoncia completa Damon + CuNiTi",precio:3800000},
+  {tratamiento:"Ortopedia dentición mixta / LM Activator",precio:2500000},
+  {tratamiento:"Control mensual ortodoncia",precio:75000},
+  {tratamiento:"Reposición de bracket",precio:20000},
+  {tratamiento:"Reposición levante de mordida",precio:30000},
+  {tratamiento:"Contención fija o removible",precio:250000},
+  {tratamiento:"Reparación aparatología removible",precio:130000},
+  {tratamiento:"Consulta pediátrica",precio:28000},
+  {tratamiento:"Restauración en niños",precio:65000},
+  {tratamiento:"Corona de acero inoxidable",precio:140000},
+  {tratamiento:"Endodoncia parcial niños",precio:90000},
+  {tratamiento:"Mantenedor de espacio fijo",precio:140000},
+  {tratamiento:"Mantenedor de espacio removible",precio:160000},
+  {tratamiento:"Sellado de fosas y fisuras",precio:50000},
+  {tratamiento:"Topicación de flúor",precio:40000},
+  {tratamiento:"Tartrectomía ambas arcadas",precio:65000},
+  {tratamiento:"Tratamiento subgingival por sector",precio:85000},
+  {tratamiento:"Cirugía periodontal por sector",precio:115000},
+  {tratamiento:"Historia clínica periodontal",precio:55000},
+  {tratamiento:"Blanqueamiento clínico por sesión",precio:420000},
+  {tratamiento:"Blanqueamiento ambulatorio",precio:430000},
+  {tratamiento:"Radiografía periapical",precio:28000},
+  {tratamiento:"Radiografía seriada (5-7 placas)",precio:50000},
+  {tratamiento:"Tratamiento láser por sesión",precio:80000},
+  {tratamiento:"Otro",precio:0},
 ];
 const FORMAS_PAGO = ["Efectivo","Transferencia","Tarjeta de débito","Tarjeta de crédito"];
 
@@ -683,10 +738,13 @@ function Presupuestos() {
         {form.items.map((item,idx)=>(
           <div key={item.id} style={{display:"grid",gridTemplateColumns:"1fr 140px 30px",gap:8,marginBottom:8,alignItems:"end"}}>
             <Field label={idx===0?"Tratamiento":""}>
-              <select style={inputStyle} value={item.tratamiento} onChange={e=>updateItem(item.id,"tratamiento",e.target.value)}>
+              <select style={inputStyle} value={item.tratamiento} onChange={e=>{
+                const sel = LISTA_PRECIOS.find(p=>p.tratamiento===e.target.value);
+                updateItem(item.id,"tratamiento",e.target.value);
+                if(sel && sel.precio > 0) updateItem(item.id,"precio",sel.precio);
+              }}>
                 <option value="">— Seleccionar —</option>
-                {TRATAMIENTOS_PRESET.map(t=><option key={t}>{t}</option>)}
-                <option value="Otro">Otro…</option>
+                {LISTA_PRECIOS.map(p=><option key={p.tratamiento}>{p.tratamiento}</option>)}
               </select>
               {item.tratamiento==="Otro"&&<input style={{...inputStyle,marginTop:6}} placeholder="Describí el tratamiento" value={item.tratamientoCustom||""} onChange={e=>updateItem(item.id,"tratamientoCustom",e.target.value)} />}
             </Field>
