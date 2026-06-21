@@ -668,6 +668,10 @@ function Presupuestos() {
     setVista("lista"); setPresActual(null); setForm(FORM_INIT);
   };
 
+  const filtrados = presupuestos.filter(p =>
+    p.pacienteNombre.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
   const imprimir = (p) => {
     const win = window.open("","_blank");
     const total = totalFinal(p);
